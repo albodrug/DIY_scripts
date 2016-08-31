@@ -114,6 +114,24 @@ sub overlap2trim_reference {
   return ($bv4_id01, $overlap_length, @trim);
 }
 
+sub is_at_edge {
+  my $bool = 0;
+  my($ref_id, $qwr_id, $ref_a1, $ref_a2, $qwr_b1, $qwr_b2, $ori01, $innie01, $olen01, $oprop01, $novpend01, $overhang01) = @_;
+  my @ref_idarr = split(/_len=/, $ref_id, 2); my $ref_len = $ref_idarr[1];
+  my @qwr_idarr = split(/_len=/, $qwr_id, 2); my $qwr_len = $qwr_idarr[1];
+  my $maxoverhang = 500;
+  my @wanted_edges_ref = (1+$maxoverhang, $ref_len-$maxoverhang);
+  my @wanted_edges_qwr = (1+$maxoverhang, $qwr_len-$maxoverhang);
+  my @edges_ref = ($ref_a1, $ref_a2);
+  my @edges_qwr = sort { $a <=> $b } ($qwr_b1, $qwr_b2);
+  #print $ref_a1, "\n";
+  if ( ( $edges_ref[0] < $wanted_edges_ref[0] or $edges_ref[1] > $wanted_edges_ref[1]) and ($edges_qwr[0] < $wanted_edges_qwr[0] or $edges_qwr[1] > $wanted_edges_qwr[1])  ){
+    #print $ref_a1, " HEYHEYHEYYES?\n";
+    $bool = 1;
+  }
+
+  return $bool; 
+}
 
 while (my $line = <$table>) {
   chomp $line;
@@ -123,6 +141,8 @@ while (my $line = <$table>) {
   push @bv4_id, $overlap[0] unless $overlap[0] ~~ @bv4_id ;
 }
 
+my @onearr = (1,1);
+
 my @treated_suboverlap_ids;
 foreach my $id3 (@bv3_id){
   foreach my $ovlp (@arrovlps){
@@ -131,15 +151,18 @@ foreach my $id3 (@bv3_id){
       push @subovlps, \@$ovlp;
     }
   }
-  if (scalar(@subovlps) > 1) {
+  if (scalar(@subovlps) > 1) { # For an id, there should be more than one alignment to be able to compare... two alignments. 
     foreach my $ovlp01 (@subovlps){
       foreach my $ovlp02 (@subovlps){
         # I do not want to compare same alignments or alignment to identique query
-        unless (@$ovlp01 ~~ @$ovlp02 or @$ovlp01[0] eq @$ovlp02[0] or @$ovlp02[0] ~~ @treated_suboverlap_ids){ 
-          my ($bv3_contig, $overlap_length, @trim) = overlap2trim_query(\@$ovlp01, \@$ovlp02) ;
-          if ($overlap_length ne -1) {
-            print "####\n On the QUERY contig: ", $bv3_contig, "\nTwo reference contigs overlap:\n", "\t\t@$ovlp01\n", "\t\t@$ovlp02\n","Overlap length is:", $overlap_length ;
-            print "\nThe solution provided is the follwing trim: ", "@trim\n", "\n";
+        my @edgy = (is_at_edge(@$ovlp01), is_at_edge(@$ovlp02));
+        unless (@$ovlp01 ~~ @$ovlp02 or @$ovlp01[0] eq @$ovlp02[0] or @$ovlp02[0] ~~ @treated_suboverlap_ids){
+          if ( @edgy ~~ @onearr ){
+            my ($bv3_contig, $overlap_length, @trim) = overlap2trim_query(\@$ovlp01, \@$ovlp02) ;
+            if ($overlap_length ne -1) {
+              print "####\nOn the QUERY contig: ", $bv3_contig, "\nTwo reference contigs overlap:\n", "\t\t@$ovlp01\n", "\t\t@$ovlp02\n","Overlap length is:", $overlap_length ;
+              print "\nThe solution provided is the follwing trim: ", "@trim\n", "\n @edgy\n";
+            }
           }
         }
       }
@@ -159,11 +182,14 @@ foreach my $id4 (@bv4_id){
   if (scalar(@subovlps) > 1) {
     foreach my $ovlp01 (@subovlps){
       foreach my $ovlp02 (@subovlps){
+        my @edgy = (is_at_edge(@$ovlp01), is_at_edge(@$ovlp02));
         unless (@$ovlp01 ~~ @$ovlp02 or @$ovlp01[1] eq @$ovlp02[1] or @$ovlp02[1] ~~ @treated_suboverlap_ids){
-          my ($bv4_contig, $overlap_length, @trim) = overlap2trim_reference(\@$ovlp01, \@$ovlp02) ;
-          if ($overlap_length ne -1) {
-            print "####\n On the REFERENCE contig: ", $bv4_contig, "\nTwo query contigs overlap:\n", "\t\t@$ovlp01\n", "\t\t@$ovlp02\n","Overlap length is:", $overlap_length ;
-            print "\nThe solution provided is the follwing trim: ", "@trim\n", "\n";
+          if ( @edgy ~~ @onearr ){
+            my ($bv4_contig, $overlap_length, @trim) = overlap2trim_reference(\@$ovlp01, \@$ovlp02) ;
+            if ($overlap_length ne -1) {
+              print "####\nOn the REFERENCE contig: ", $bv4_contig, "\nTwo query contigs overlap:\n", "\t\t@$ovlp01\n", "\t\t@$ovlp02\n","Overlap length is:", $overlap_length ;
+              print "\nThe solution provided is the follwing trim: ", "@trim\n", "\n @edgy\n";
+            }
           }
         }
       }
