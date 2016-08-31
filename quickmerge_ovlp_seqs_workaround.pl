@@ -1,6 +1,6 @@
 #!/usr/bin/perl
-#
-#
+# abodrug 31.08.2016
+# This script detects overlaps at contig edges in the summary output of quickmerge and suggests trimming solutions
 
 use strict;
 use warnings;
@@ -12,14 +12,8 @@ or die "Could not open file '$cordfile' !";
 
 my @arrovlps; # array of arrays
 my @subovlps; # array of arrays subset
-my @bv3_id;
-my @bv4_id;
-
-sub splitid {
-  my $id = @_;
-  my @idlen = split(/_len=/, $id, 2);
-  return $idlen[1];
-}
+my @bv3_id; # queries ids
+my @bv4_id; # reference ids
 
 sub get_overlap_length {
   my @sorted_coordinates = sort { $a <=> $b } @_;
@@ -36,85 +30,73 @@ sub get_trim {
   }else{
     return ($id02, $sorted_dcoords[0]+$trim_dist, $len02);
   }
-#print "@trim\nhey";
-#return @trim;
 }
 
-sub overlap2trim_query {
-  my($ovlp01, $ovlp02) = @_;
-  my($bv4_id01, $bv3_id01, $bv4_c101, $bv4_c201, $bv3_a101, $bv3_a201, $ori01, $innie01, $olen01, $oprop01, $novpend01, $overhang01) = @$ovlp01;
-  my($bv4_id02, $bv3_id02, $bv4_d102, $bv4_d202, $bv3_b102, $bv3_b202, $ori02, $innie02, $olen02, $oprop02, $novpend02, $overhang02) = @$ovlp02;
-  my @bv4_idarr01 = split(/_len=/, $bv4_id01, 2); my $bv4_len01 = $bv4_idarr01[1];
-  my @bv4_idarr02 = split(/_len=/, $bv4_id02, 2); my $bv4_len02 = $bv4_idarr02[1];  
-  
-  my @trim = ("id", 0, 0);
-  my $overlap_length = -1;
+sub overlap2trim {
   # There are four cases of overlapping coordinates with a different overlap length calculus each time. Get ready for the ride. 
   # First case: queries are oriented both to the right: a1<=a2 && b1<=b2. There is an overlap if and only if a1<=b2 && b1<=a2. Overlap lenght = |b1-a2|
-  if ( ($bv3_a101 < $bv3_a201 and $bv3_b102 < $bv3_b202) and ($bv3_a101 <= $bv3_b202 and $bv3_b102 <= $bv3_a201) ){
-    $overlap_length = get_overlap_length($bv3_a101, $bv3_a201, $bv3_b102, $bv3_b202); # OVERLAP LENGTH
-    my $trim_dist = $overlap_length + 2; 
-    # I want to cut the longest contig. Cutting at head coordinate if first contigs is larger, cutting at tail coordinate if second contig larger. 
-    # The coordinates for query sequence are always first_coord < second_coord.
-    my ($tid, $tx, $ty) = get_trim($bv4_id01,$bv4_id02,$bv4_len01,$bv4_len02,$bv4_c101, $bv4_c201,$bv4_d102, $bv4_d202,$trim_dist);
-    @trim = ($tid, $tx, $ty); # TRIM SUGGESTION
   # Second case: queries align face to face -><- on the reference. There is an overlap if and only if a1>=b2 && a2<=b1
-  }elsif ( ($bv3_a101 > $bv3_a201 and $bv3_b102 > $bv3_b202) and ($bv3_a101 >= $bv3_b202 and $bv3_b102 >= $bv3_a201) ){
-    $overlap_length = get_overlap_length($bv3_a101, $bv3_a201, $bv3_b102, $bv3_b202);
-    my $trim_dist = $overlap_length + 2;
-    my ($tid, $tx, $ty) = get_trim($bv4_id01,$bv4_id02,$bv4_len01,$bv4_len02,$bv4_c101, $bv4_c201,$bv4_d102, $bv4_d202,$trim_dist);
-    @trim = ($tid, $tx, $ty);
   # Third case: queries align backing each other on the reference <-->. There is an overlap if and only if a1>=b1 && a2<=b2
-  }elsif ( ($bv3_a101 > $bv3_a201 and $bv3_b102 < $bv3_b202) and ($bv3_a101 >= $bv3_b102 and $bv3_a201 <= $bv3_b202) ) {
-    $overlap_length = get_overlap_length($bv3_a101, $bv3_a201, $bv3_b102, $bv3_b202);
-    my $trim_dist = $overlap_length + 2;
-    my ($tid, $tx, $ty) = get_trim($bv4_id01,$bv4_id02,$bv4_len01,$bv4_len02,$bv4_c101, $bv4_c201,$bv4_d102, $bv4_d202,$trim_dist); 
-    @trim = ($tid, $tx, $ty);  
   # Fourth case: both queries are oriented to the left on the reference contig. There is an oberlap if and only if a1<=b1 && a2>=b2
-  }elsif ( ($bv3_a101 > $bv3_a201 and $bv3_b102 > $bv3_b202) and ($bv3_a101 >= $bv3_b202 and $bv3_a201 <= $bv3_b102) ){
-    $overlap_length = get_overlap_length($bv3_a101, $bv3_a201, $bv3_b102, $bv3_b202);
-    my $trim_dist = $overlap_length + 2;
-    my ($tid, $tx, $ty) = get_trim($bv4_id01,$bv4_id02,$bv4_len01,$bv4_len02,$bv4_c101, $bv4_c201,$bv4_d102, $bv4_d202,$trim_dist);
-    @trim = ($tid, $tx, $ty);
-  }
-
-  return ($bv3_id01, $overlap_length, @trim);
-}
-
-sub overlap2trim_reference {
-  my($ovlp01, $ovlp02) = @_;
-  my($bv4_id01, $bv3_id01, $bv4_a101, $bv4_a201, $bv3_c101, $bv3_c201, $ori01, $innie01, $olen01, $oprop01, $novpend01, $overhang01) = @$ovlp01;
-  my($bv4_id02, $bv3_id02, $bv4_b102, $bv4_b202, $bv3_d102, $bv3_d202, $ori02, $innie02, $olen02, $oprop02, $novpend02, $overhang02) = @$ovlp02;
-  my @bv3_idarr01 = split(/_len=/, $bv3_id01, 2); my $bv3_len01 = $bv3_idarr01[1];
-  my @bv3_idarr02 = split(/_len=/, $bv3_id02, 2); my $bv3_len02 = $bv3_idarr02[1];
-
+  # Coordinate constrains is different if it is queries or references which overlap
+  my($ovlp01, $ovlp02, $type) = @_;
+  my($ref_id01, $qwr_id01, $ref_c101, $ref_c201, $qwr_a101, $qwr_a201, $ori01, $innie01, $olen01, $oprop01, $novpend01, $overhang01) = @$ovlp01;
+  my($ref_id02, $qwr_id02, $ref_d102, $ref_d202, $qwr_b102, $qwr_b202, $ori02, $innie02, $olen02, $oprop02, $novpend02, $overhang02) = @$ovlp02;
+  my @ref_idarr01 = split(/_len=/, $ref_id01, 2); my $ref_len01 = $ref_idarr01[1];
+  my @ref_idarr02 = split(/_len=/, $ref_id02, 2); my $ref_len02 = $ref_idarr02[1];
+  my @qwr_idarr01 = split(/_len=/, $qwr_id01, 2); my $qwr_len01 = $qwr_idarr01[1];
+  my @qwr_idarr02 = split(/_len=/, $qwr_id02, 2); my $qwr_len02 = $qwr_idarr02[1];
   my @trim = ("id", 0, 0);
   my $overlap_length = -1;
-
-  if ( ($bv4_a101 < $bv4_a201 and $bv4_b102 < $bv4_b202) and ($bv4_a101 <= $bv4_b202 and $bv4_b102 <= $bv4_a201) ){
-    $overlap_length = get_overlap_length($bv4_a101, $bv4_a201, $bv4_b102, $bv4_b202); # OVERLAP LENGTH
-    my $trim_dist = $overlap_length + 2;
-    my ($tid, $tx, $ty) = get_trim($bv3_id01,$bv3_id02,$bv3_len01,$bv3_len02,$bv3_c101, $bv3_c201,$bv3_d102, $bv3_d202,$trim_dist);
-    @trim = ($tid, $tx, $ty); # TRIM SUGGESTION
-  }elsif ( ($bv4_a101 > $bv4_a201 and $bv4_b102 > $bv4_b202) and ($bv4_a101 >= $bv4_b202 and $bv4_b102 >= $bv4_a201) ){
-    $overlap_length = get_overlap_length($bv4_a101, $bv4_a201, $bv4_b102, $bv4_b202);
-    my $trim_dist = $overlap_length + 2;
-    my ($tid, $tx, $ty) = get_trim($bv3_id01,$bv3_id02,$bv3_len01,$bv3_len02,$bv3_c101, $bv3_c201,$bv3_d102, $bv3_d202,$trim_dist);
-    @trim = ($tid, $tx, $ty);
-  }elsif ( ($bv4_a101 > $bv4_a201 and $bv4_b102 < $bv4_b202) and ($bv4_a101 >= $bv4_b102 and $bv4_a201 <= $bv4_b202) ) {
-    $overlap_length = get_overlap_length($bv4_a101, $bv4_a201, $bv4_b102, $bv4_b202);
-    my $trim_dist = $overlap_length + 2;
-    my ($tid, $tx, $ty) = get_trim($bv3_id01,$bv3_id02,$bv3_len01,$bv3_len02,$bv3_c101, $bv3_c201,$bv3_d102, $bv3_d202,$trim_dist);
-  }elsif ( ($bv4_a101 > $bv4_a201 and $bv4_b102 > $bv4_b202) and ($bv4_a101 >= $bv4_b202 and $bv4_a201 <= $bv4_b102) ){
-    $overlap_length = get_overlap_length($bv4_a101, $bv4_a201, $bv4_b102, $bv4_b202);
-    my $trim_dist = $overlap_length + 2;
-    my ($tid, $tx, $ty) = get_trim($bv3_id01,$bv3_id02,$bv3_len01,$bv3_len02,$bv3_c101, $bv3_c201,$bv3_d102,$bv3_d202,$trim_dist);
+  if ($type eq "query"){
+    if ( ($qwr_a101 < $qwr_a201 and $qwr_b102 < $qwr_b202) and ($qwr_a101 <= $qwr_b202 and $qwr_b102 <= $qwr_a201) ){
+      $overlap_length = get_overlap_length($qwr_a101, $qwr_a201, $qwr_b102, $qwr_b202); # OVERLAP LENGTH
+      my $trim_dist = $overlap_length + 2;
+      my ($tid, $tx, $ty) = get_trim($ref_id01,$ref_id02,$ref_len01,$ref_len02,$ref_c101, $ref_c201,$ref_d102, $ref_d202,$trim_dist);
+      @trim = ($tid, $tx, $ty); # TRIM SUGGESTION
+    }elsif ( ($qwr_a101 > $qwr_a201 and $qwr_b102 > $qwr_b202) and ($qwr_a101 >= $qwr_b202 and $qwr_b102 >= $qwr_a201) ){
+      $overlap_length = get_overlap_length($qwr_a101, $qwr_a201, $qwr_b102, $qwr_b202);
+      my $trim_dist = $overlap_length + 2;
+      my ($tid, $tx, $ty) = get_trim($ref_id01,$ref_id02,$ref_len01,$ref_len02,$ref_c101, $ref_c201,$ref_d102, $ref_d202,$trim_dist);
+      @trim = ($tid, $tx, $ty);
+    }elsif ( ($qwr_a101 > $qwr_a201 and $qwr_b102 < $qwr_b202) and ($qwr_a101 >= $qwr_b102 and $qwr_a201 <= $qwr_b202) ) {
+      $overlap_length = get_overlap_length($qwr_a101, $qwr_a201, $qwr_b102, $qwr_b202);
+      my $trim_dist = $overlap_length + 2;
+      my ($tid, $tx, $ty) = get_trim($ref_id01,$ref_id02,$ref_len01,$ref_len02,$ref_c101, $ref_c201,$ref_d102, $ref_d202,$trim_dist);
+      @trim = ($tid, $tx, $ty);
+    }elsif ( ($qwr_a101 > $qwr_a201 and $qwr_b102 > $qwr_b202) and ($qwr_a101 >= $qwr_b202 and $qwr_a201 <= $qwr_b102) ){
+      $overlap_length = get_overlap_length($qwr_a101, $qwr_a201, $qwr_b102, $qwr_b202);
+      my $trim_dist = $overlap_length + 2;
+      my ($tid, $tx, $ty) = get_trim($ref_id01,$ref_id02,$ref_len01,$ref_len02,$ref_c101, $ref_c201,$ref_d102, $ref_d202,$trim_dist);
+      @trim = ($tid, $tx, $ty);
+    }
+    return ($qwr_id01, $overlap_length, @trim);
+  }elsif ($type eq "reference"){
+    if ( ($ref_c101 < $ref_c201 and $ref_d102 < $ref_d202) and ($ref_c101 <= $ref_d202 and $ref_d102 <= $ref_c201) ){
+      $overlap_length = get_overlap_length($ref_c101, $ref_c201, $ref_d102, $ref_d202); # OVERLAP LENGTH
+      my $trim_dist = $overlap_length + 2;
+      my ($tid, $tx, $ty) = get_trim($qwr_id01,$qwr_id02,$qwr_len01,$qwr_len02,$qwr_a101, $qwr_a201,$qwr_b102, $qwr_b202,$trim_dist);
+      @trim = ($tid, $tx, $ty); # TRIM SUGGESTION
+    }elsif ( ($ref_c101 > $ref_c201 and $ref_d102 > $ref_d202) and ($ref_c101 >= $ref_d202 and $ref_d102 >= $ref_c201) ){
+      $overlap_length = get_overlap_length($ref_c101, $ref_c201, $ref_d102, $ref_d202);
+      my $trim_dist = $overlap_length + 2;
+      my ($tid, $tx, $ty) = get_trim($qwr_id01,$qwr_id02,$qwr_len01,$qwr_len02,$qwr_a101, $qwr_a201,$qwr_b102, $qwr_b202,$trim_dist);
+      @trim = ($tid, $tx, $ty);
+    }elsif ( ($ref_c101 > $ref_c201 and $ref_d102 < $ref_d202) and ($ref_c101 >= $ref_d102 and $ref_c201 <= $ref_d202) ) {
+      $overlap_length = get_overlap_length($ref_c101, $ref_c201, $ref_d102, $ref_d202);
+      my $trim_dist = $overlap_length + 2;
+      my ($tid, $tx, $ty) = get_trim($qwr_id01,$qwr_id02,$qwr_len01,$qwr_len02,$qwr_a101, $qwr_a201,$qwr_b102, $qwr_b202,$trim_dist);
+    }elsif ( ($ref_c101 > $ref_c201 and $ref_d102 > $ref_d202) and ($ref_c101 >= $ref_d202 and $ref_c201 <= $ref_d102) ){
+      $overlap_length = get_overlap_length($ref_c101, $ref_c201, $ref_d102, $ref_d202);
+      my $trim_dist = $overlap_length + 2;
+      my ($tid, $tx, $ty) = get_trim($qwr_id01,$qwr_id02,$qwr_len01,$qwr_len02,$qwr_a101, $qwr_a201,$qwr_b102,$qwr_b202,$trim_dist);
+    }
+    return ($ref_id01, $overlap_length, @trim);
   }
-  
-  return ($bv4_id01, $overlap_length, @trim);
 }
 
 sub is_at_edge {
+  # This subroutine checks if an overlap is situated at the edges of contigs. If both reference and query overlap at edges, returns 1.
   my $bool = 0;
   my($ref_id, $qwr_id, $ref_a1, $ref_a2, $qwr_b1, $qwr_b2, $ori01, $innie01, $olen01, $oprop01, $novpend01, $overhang01) = @_;
   my @ref_idarr = split(/_len=/, $ref_id, 2); my $ref_len = $ref_idarr[1];
@@ -141,8 +123,11 @@ while (my $line = <$table>) {
   push @bv4_id, $overlap[0] unless $overlap[0] ~~ @bv4_id ;
 }
 
-my @onearr = (1,1);
+close $table; # closed the file
 
+my @onearr = (1,1); # doesn't work directly so I put it in a variable
+
+# Looping over ids to group 
 my @treated_suboverlap_ids;
 foreach my $id3 (@bv3_id){
   foreach my $ovlp (@arrovlps){
@@ -158,7 +143,7 @@ foreach my $id3 (@bv3_id){
         my @edgy = (is_at_edge(@$ovlp01), is_at_edge(@$ovlp02));
         unless (@$ovlp01 ~~ @$ovlp02 or @$ovlp01[0] eq @$ovlp02[0] or @$ovlp02[0] ~~ @treated_suboverlap_ids){
           if ( @edgy ~~ @onearr ){
-            my ($bv3_contig, $overlap_length, @trim) = overlap2trim_query(\@$ovlp01, \@$ovlp02) ;
+            my ($bv3_contig, $overlap_length, @trim) = overlap2trim(\@$ovlp01, \@$ovlp02, "query") ;
             if ($overlap_length ne -1) {
               print "####\nOn the QUERY contig: ", $bv3_contig, "\nTwo reference contigs overlap:\n", "\t\t@$ovlp01\n", "\t\t@$ovlp02\n","Overlap length is:", $overlap_length ;
               print "\nThe solution provided is the follwing trim: ", "@trim\n", "\n @edgy\n";
@@ -185,7 +170,7 @@ foreach my $id4 (@bv4_id){
         my @edgy = (is_at_edge(@$ovlp01), is_at_edge(@$ovlp02));
         unless (@$ovlp01 ~~ @$ovlp02 or @$ovlp01[1] eq @$ovlp02[1] or @$ovlp02[1] ~~ @treated_suboverlap_ids){
           if ( @edgy ~~ @onearr ){
-            my ($bv4_contig, $overlap_length, @trim) = overlap2trim_reference(\@$ovlp01, \@$ovlp02) ;
+            my ($bv4_contig, $overlap_length, @trim) = overlap2trim(\@$ovlp01, \@$ovlp02, "reference") ;
             if ($overlap_length ne -1) {
               print "####\nOn the REFERENCE contig: ", $bv4_contig, "\nTwo query contigs overlap:\n", "\t\t@$ovlp01\n", "\t\t@$ovlp02\n","Overlap length is:", $overlap_length ;
               print "\nThe solution provided is the follwing trim: ", "@trim\n", "\n @edgy\n";
@@ -198,63 +183,3 @@ foreach my $id4 (@bv4_id){
   }
   undef(@subovlps);
 }
-
-
-
-=pod
-foreach my $overlap (@arrovlps) {
-  my $bv3_id = @$overlap[1]; 
-  foreach my $id3 (@bv3_id) {
-    if ($id3 eq $bv3_id){
-      push @subsetovl, \@$overlap; 
-    }
-  }
-  # Now you have a subset of @arrovlps for which all id3 are the same
-  # You need to look for overlaps within this subset
-  foreach my $sub01_overlap (@subsetovl){   
-    my($sub01_bv4_id, $sub01_bv3_id, $sub01_bv4_x, $sub01_bv4_y, $sub01_bv3_x, $sub01_bv3_y, $sub01_orientation, $sub01_innie, $sub01_olen, $sub01_oprop, $sub01_novpend, $sub01_overhang) = @$sub01_overlap;
-    my $sub01_bv4_len = splitid($sub01_bv4_id);
-    foreach my $sub02_overlap (@subsetovl){
-      my($sub02_bv4_id, $sub02_bv3_id, $sub02_bv4_x, $sub02_bv4_y, $sub02_bv3_x, $sub02_bv3_y, $sub02_orientation, $sub02_innie, $sub02_olen, $sub02_oprop, $sub02_novpend, $sub02_overhang) = @$sub02_overlap;
-      my $sub02_bv4_len = splitid($sub02_bv4_id);
-      print $sub01_bv4_len,"\t", $sub02_bv4_len, "\n";
-    }
-  }
-}
-
-
-    my @idlen = split(/_len=/, $subbv4_id, 2); 
-    my $subbv4_len = $idlen[1];
-    if ($subbv4_id ne $bv4_id and ($subbv3_x ~~ [$bv3_x..$bv3_y] xor $subbv3_y ~~ [$bv3_x..$bv3_y]) ){
-      my $overlapsize = abs($bv3_x - $subbv3_x);
-      my @to_trim;
-      if ($bv4_len > $subbv4_len){
-        my $trimlim = $bv4_y-$overlapsize-2;
-        push(@to_trim, $bv4_id, $bv4_x, $trimlim); 
-      }else{
-        my $trimlim = $subbv4_y-$overlapsize-2;
-        push(@to_trim,$subbv4_id, $subbv4_x, $trimlim);
-      }
-      #print "@to_trim\n";
-      push @to_trim_array, \@to_trim unless \@to_trim ~~ @to_trim_array;
-      print "@$overlap\n", "@$suboverlap\n","\n" unless \@to_trim ~~ @to_trim_array;
-    } elsif ($subbv4_id ne $bv4_id and ($subbv3_x ~~ [$bv3_y..$bv3_x] xor $subbv3_y ~~ [$bv3_y..$bv3_x]) ){
-      my $overlapsize = abs($bv3_y - $subbv3_y);
-      my @to_trim;
-      if ($bv4_len > $subbv4_len){
-        my $trimlim = $bv4_x-$overlapsize;
-        push(@to_trim, $bv4_id, $trimlim, $bv4_y);
-      }else{
-        my $trimlim = $subbv4_y-$overlapsize;
-        push(@to_trim,$subbv4_id, $subbv4_x, $trimlim);
-      }
-      push @to_trim_array, \@to_trim unless \@to_trim ~~ @to_trim_array;
-      print "@$overlap\n", "@$suboverlap\n","\n" unless \@to_trim ~~ @to_trim_array;    
-    }
-  }
-
-}
-
-=cut
-
-close $table;
