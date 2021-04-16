@@ -1,11 +1,1 @@
-# 31.08.2016
-Yo. 
-This is the land of desolate and desperate scripts. 
 
-### 
-quickmerge_ovlp_seqs_workaround.pl
-###
-usage quickmerge_ovlp_seqs_workaround.pl summaryOut.txt (quickmerge output, first line deleted)
-Your contig id should be like this: >id_len=123456, nothing more, nothing else. Or it does not work. Yo this ain't samtools. 
-Output indicates the pair of overlapping sequences over a third sequence, gives the overlap length and a suggested trim for the longest of the two overlapping sequences. 
-You can extract this suggestion and use it as input to seqtk subseq, but change the first coordiante by -1, cause seqtk seq is 0 based index for nucleotide numbering. 
